@@ -1,0 +1,31 @@
+syntax = "proto3";
+package org.main.java.grpc;
+
+option java_generic_services = true;
+
+enum ResponseCode {
+  UNKNOWN = 0;
+  ACCEPTED = 1;
+  REJECTED = 2;
+}
+
+message Block {
+  int64 index = 1;
+  string prev_hash = 2;
+  string hash = 3;
+  string data = 4;
+  int64 nonce = 5;
+}
+
+message MinedBlockRequest {
+  Block block = 1;
+}
+
+message MinedBlockResponse {
+    ResponseCode code = 1;
+    Block block = 2; // will be returned only if ResponseCode is REJECTED
+}
+
+service BlockService {
+  rpc sendBlock(MinedBlockRequest) returns (MinedBlockResponse);
+}

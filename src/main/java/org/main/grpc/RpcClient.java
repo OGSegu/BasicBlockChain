@@ -13,9 +13,13 @@ import java.util.Properties;
 
 public class RpcClient {
 
+
+    private final String nodeName;
+
     private final List<BlockServiceGrpc.BlockServiceBlockingStub> stubs;
 
-    public RpcClient(Properties properties) {
+    public RpcClient(String nodeName, Properties properties) {
+        this.nodeName = nodeName;
         this.stubs = new ArrayList<>();
         init(properties);
     }
@@ -23,7 +27,11 @@ public class RpcClient {
     private void init(Properties properties) {
         int nodesAmount = Integer.parseInt(properties.getProperty(RpcConfiguration.NODES_AMOUNT_PROPERTY));
         for (int i = 0; i < nodesAmount; i++) {
-            String target = properties.getProperty(RpcConfiguration.NODE_PREFIX_PROPERTY + i);
+            String curNodeName = RpcConfiguration.NODE_PREFIX_PROPERTY + i;
+            if (curNodeName.equalsIgnoreCase(nodeName)) {
+                continue; // skipping current node
+            }
+            String target = properties.getProperty(curNodeName);
             String[] targetAddress = target.split(":");
             ManagedChannel channel = ManagedChannelBuilder.forAddress(targetAddress[0], Integer.parseInt(targetAddress[1]))
                     .usePlaintext()

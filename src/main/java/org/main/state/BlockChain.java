@@ -11,6 +11,7 @@ import org.main.grpc.RpcClient;
 import org.main.grpc.entity.MinedBlockRequest;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
@@ -29,13 +30,9 @@ public class BlockChain {
     private final ReentrantLock lock = new ReentrantLock(true);
 
     public BlockChain(boolean generateGenesis, RpcClient rpcClient) throws InterruptedException {
-        this.blocks = new ArrayList<>();
+        this.blocks = generateGenesis ? Arrays.asList(BlockGenerationUtils.generateGenesis()) : new ArrayList<>();
         this.mainWorker = Executors.newSingleThreadExecutor();
         this.rpcClient = rpcClient;
-
-        if (generateGenesis) {
-            this.blocks.add(BlockGenerationUtils.generateGenesis());
-        }
     }
     public void start() {
         mainWorker.submit(new BlockChainMainWorker());
@@ -109,13 +106,14 @@ public class BlockChain {
                     Block generatedBlock = BlockGenerationUtils.generateBlock(prevBlock);
 
                     add(generatedBlock);
+
                     System.out.println("Broadcasting mined block: +" + generatedBlock);
                     rpcClient.sendBlockBroadcast(generatedBlock);
 
                     Thread.sleep(DELAY);
                 } catch (ChainValidationException e) {
                     System.err.println("Chain validation failed: " + e.getMessage());
-                    Thread.currentThread().interrupt();
+                    // TODO do something
                 } catch (InterruptedException e) {
                     System.err.println("Thread was interrupted: " + e.getMessage());
                     Thread.currentThread().interrupt();

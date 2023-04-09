@@ -22,6 +22,7 @@ public final class BlockGenerationUtils {
     }
 
     public static Block generateGenesis() throws InterruptedException {
+        System.out.println("Generating genesis block...");
         long index = 0L;
         String data = BlockGenerationUtils.generateRandomData();
         String text = index + data;

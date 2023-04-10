@@ -1,0 +1,23 @@
+version: "3.8"
+services:
+  first-node:
+    image: blockchain_node
+    container_name: node_0
+    network_mode: host
+    command: java -jar /app/BasicBlockChain-1.0-SNAPSHOT.jar -n node_0
+    ports:
+      - "8080:8080"
+  second-node:
+    image: blockchain_node
+    container_name: node_1
+    network_mode: host
+    command: java -jar /app/BasicBlockChain-1.0-SNAPSHOT.jar -n node_1
+    ports:
+      - "8081:8081"
+  third-node:
+    image: blockchain_node
+    container_name: node_2
+    network_mode: host
+    command: java -jar /app/BasicBlockChain-1.0-SNAPSHOT.jar -n node_2
+    ports:
+      - "8082:8082"

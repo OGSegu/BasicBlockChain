@@ -2,15 +2,6 @@ package org.main.grpc.entity;
 
 import org.main.entity.Block;
 
-public class MinedBlockRequest {
+public record MinedBlockRequest(Block block) {
 
-    private final Block block;
-
-    public MinedBlockRequest(Block block) {
-        this.block = block;
-    }
-
-    public Block getBlock() {
-        return block;
-    }
 }

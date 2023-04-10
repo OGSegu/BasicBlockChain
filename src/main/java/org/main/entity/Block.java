@@ -29,8 +29,6 @@ public class Block {
         this.timestamp = System.currentTimeMillis();
     }
 
-
-
     public long getTimestamp() {
         return timestamp;
     }

@@ -2,17 +2,22 @@ package org.main;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.apache.commons.lang3.tuple.Pair;
-import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.main.entity.Block;
 
 import java.nio.charset.StandardCharsets;
+import java.util.function.BooleanSupplier;
 
 public final class BlockGenerationUtils {
-    private static final int RANDOM_DATA_TEXT_BOUND = 30;
-    private static final int DIFFICULTY = 4;
-    private static final String LAST_SYMBOLS = "0".repeat(DIFFICULTY);
     private static final DigestUtils HASH_COMPUTER = new DigestUtils("SHA-256");
+
+    private static final int RANDOM_DATA_TEXT_BOUND = 30;
+    private static final int DIFFICULTY = 5;
+    private static final String LAST_SYMBOLS = "0".repeat(DIFFICULTY);
+
+
+    public static final long GENESIS_BLOCK_INDEX = 0L;
+    public static final String GENESIS_BLOCK_PREV_HASH = "stub";
 
 
     private BlockGenerationUtils() {}
@@ -21,45 +26,42 @@ public final class BlockGenerationUtils {
         return RandomStringUtils.randomAlphabetic(RANDOM_DATA_TEXT_BOUND);
     }
 
-    public static Block generateGenesis() throws InterruptedException {
+    public static Block generateGenesis() {
         System.out.println("Generating genesis block...");
-        long index = 0L;
+        long index = GENESIS_BLOCK_INDEX;
         String data = BlockGenerationUtils.generateRandomData();
         String text = index + data;
 
-        Pair<String, Long> result = calculateHash(text);
-        String hash = result.getKey();
-        Long nonce = result.getValue();
-
-        return new Block(index, null, hash, nonce, data);
+        String hash;
+        long nonce = 0L;
+        do {
+            hash = calculateHash(text, ++nonce);
+        } while (!isHashMeetsRequirements(hash));
+        return new Block(index, GENESIS_BLOCK_PREV_HASH, hash, nonce, data);
     }
 
-    @NotNull
-    public static Block generateBlock(Block prevBlock) throws InterruptedException {
-
+    @Nullable
+    public static Block generateBlock(Block prevBlock, BooleanSupplier stopCondition) {
         long index = prevBlock.getIndex() + 1;
         String prevHash = prevBlock.getHash();
         String data = BlockGenerationUtils.generateRandomData();
         String text = index + prevHash + data;
 
-        Pair<String, Long> result = calculateHash(text);
-        String hash = result.getKey();
-        Long nonce = result.getValue();
-
+        System.out.printf("Mining block with index: [%d]%n", index);
+        String hash;
+        long nonce = 0L;
+        do {
+            if (stopCondition.getAsBoolean()) {
+                return null;
+            }
+            hash = calculateHash(text, ++nonce);
+        } while (!isHashMeetsRequirements(hash));
         return new Block(index, prevHash, hash, nonce, data);
     }
 
-    private static Pair<String, Long> calculateHash(String basicText) throws InterruptedException {
-        long nonce = 0L;
-        String hashResult;
-        do {
-            if (Thread.currentThread().isInterrupted()) {
-                throw new InterruptedException();
-            }
-            String dataToHash = basicText + nonce++;
-            hashResult = HASH_COMPUTER.digestAsHex(dataToHash.getBytes(StandardCharsets.UTF_8));
-        } while (!isHashMeetsRequirements(hashResult));
-        return Pair.of(hashResult, nonce);
+    private static String calculateHash(String basicText, long nonce) {
+        String dataToHash = basicText + nonce;
+        return HASH_COMPUTER.digestAsHex(dataToHash.getBytes(StandardCharsets.UTF_8));
     }
 
     private static boolean isHashMeetsRequirements(String hash) {

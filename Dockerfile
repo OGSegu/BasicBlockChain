@@ -1,8 +1,8 @@
-FROM gradle:7-jdk17 AS build
+FROM gradle:8-jdk17 AS build
 COPY --chown=gradle:gradle . /home/gradle/src
 WORKDIR /home/gradle/src
-RUN gradle jar
+RUN gradle shadowJar
 
 FROM openjdk:17
 RUN mkdir /app
-COPY --from=build /home/gradle/src/build/libs/BasicBlockChain-1.0-SNAPSHOT.jar /app/BasicBlockChain-1.0-SNAPSHOT.jar
+COPY --from=build /home/gradle/src/build/libs/blockchain.jar /app/blockchain.jar

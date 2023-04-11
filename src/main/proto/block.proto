@@ -1,4 +1,5 @@
 syntax = "proto3";
+import "google/protobuf/empty.proto";
 package org.main.java.grpc;
 
 option java_generic_services = true;
@@ -7,6 +8,7 @@ enum ResponseCode {
   UNKNOWN = 0;
   ACCEPTED = 1;
   REJECTED = 2;
+  FAILED = 3;
 }
 
 message Block {
@@ -26,6 +28,20 @@ message MinedBlockResponse {
     Block block = 2; // will be returned only if ResponseCode is REJECTED
 }
 
+message GetBlockChainRequest {
+  int64 from_index = 1;
+}
+
+message GetBlockChainResponse {
+  repeated Block block = 1;
+}
+
+message HeartbeatResponse {
+  int64 chain_length = 1;
+}
+
 service BlockService {
   rpc sendBlock(MinedBlockRequest) returns (MinedBlockResponse);
+  rpc getBlockchain(GetBlockChainRequest) returns (GetBlockChainResponse);
+  rpc sendHeartbeat(google.protobuf.Empty) returns (HeartbeatResponse);
 }

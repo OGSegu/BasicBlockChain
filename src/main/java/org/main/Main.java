@@ -4,21 +4,29 @@ package org.main;
 import org.jetbrains.annotations.NotNull;
 import org.main.grpc.RpcClient;
 import org.main.grpc.RpcServer;
-import org.main.state.BlockChain;
+import org.main.state.BlockChainService;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 
 public class Main {
 
-    public static void main(String[] args) throws IOException, InterruptedException {
+    private static final String NODE_NAME_ARG = "-n";
+    private static final String GENESIS_GENERATOR_ARG = "-g";
+
+    public static void main(String[] args) throws IOException {
         Properties properties = loadProperties();
-        String nodeName = getNodeName(args);
+        Map<String, String> parsedArgs = getNodeName(args);
+        String nodeName = parsedArgs.get(NODE_NAME_ARG);
+        boolean genesisGeneratorNode = parsedArgs.containsKey(GENESIS_GENERATOR_ARG);
+
 
         RpcClient rpcClient = new RpcClient(nodeName, properties);
 
-        BlockChain blockchain = new BlockChain(true, rpcClient);
+        BlockChainService blockchain = new BlockChainService(genesisGeneratorNode, rpcClient);
         blockchain.start();
 
         int nodePort = Integer.parseInt(properties.getProperty(nodeName).split(":")[1]);
@@ -26,16 +34,21 @@ public class Main {
         rpcServer.start();
     }
 
-    private static String getNodeName(String[] args) {
+    private static Map<String, String> getNodeName(String[] args) {
+        Map<String, String> result = new HashMap<>();
         for (int i = 0; i < args.length; i++) {
-            if (args[i].equalsIgnoreCase("-n")) {
+            if (args[i].equalsIgnoreCase(NODE_NAME_ARG)) {
                 if (i + 1 > args.length - 1) {
                     throw new IllegalArgumentException("No name is defined");
                 }
-                return args[i + 1];
+                result.put(NODE_NAME_ARG, args[i + 1]);
+                continue;
+            }
+            if (args[i].equalsIgnoreCase(GENESIS_GENERATOR_ARG)) {
+                result.put(GENESIS_GENERATOR_ARG, "stub");
             }
         }
-        throw new IllegalArgumentException("No name is defined");
+        return result;
     }
 
     @NotNull

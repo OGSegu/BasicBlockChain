@@ -6,7 +6,8 @@ import org.jetbrains.annotations.NotNull;
 public enum MinedBlockResponseCode {
     UNKNOWN(0),
     ACCEPTED(1),
-    REJECTED(2)
+    REJECTED(2),
+    FAILED(3)
     ;
 
     private final int code;

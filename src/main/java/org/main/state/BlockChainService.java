@@ -59,7 +59,8 @@ public class BlockChainService {
         System.out.println("Blockchain started...");
     }
 
-    private void loadBlockchainFromCluster(long fromIndex) {
+    @VisibleForTesting
+    protected void loadBlockchainFromCluster(long fromIndex) {
         System.out.printf("Trying to get blockchain from index: [%d] from cluster...%n", fromIndex);
 
         lock.lock();
@@ -74,6 +75,8 @@ public class BlockChainService {
                 add(block);
             }
             System.out.printf("Successfully added [%d] blocks from cluster%n", receivedBlockchain.size());
+        } catch (ChainValidationException e) {
+            throw new RuntimeException(e); // TODO
         } finally {
             lock.unlock();
         }
@@ -104,6 +107,8 @@ public class BlockChainService {
                 add(block);
                 System.out.printf("Added received block with index: [%d]%n", block.getIndex());
                 return true;
+            } catch (ChainValidationException e) {
+                throw new RuntimeException(e); //TODO
             } finally {
                 lock.unlock();
             }
@@ -112,18 +117,20 @@ public class BlockChainService {
         }
     }
 
+
     @VisibleForTesting
-    boolean add(Block newBlock) {
+    protected void addFailSafe(Block newBlock) {
+        blocks.add(newBlock);
+    }
+
+    @VisibleForTesting
+    protected boolean add(Block newBlock) throws ChainValidationException {
         blocks.add(newBlock);
         try {
             validateChains();
         } catch (ChainValidationException e) {
             blocks.remove(blocks.size() - 1); // добавленный блок "сломал" цепочку
-            return false;
-        }
-
-        if (newBlock.getIndex() % 10 == 0) {
-            System.out.printf("Blockchain state: [%s]%n", Joiner.on(";").join(blocks));
+            throw new ChainValidationException(newBlock.getIndex() - 1, newBlock.getIndex());
         }
 
         return true;
@@ -140,7 +147,7 @@ public class BlockChainService {
         for (int i = blocks.size() - 1; i >= 1; i--) {
             Block prevBlock = blocks.get(i - 1);
             Block curBlock = blocks.get(i);
-            if (!Objects.equals(prevBlock.getHash(), curBlock.getPrevHash())) {
+            if (!Objects.equals(prevBlock.getHash(), curBlock.getPrevHash()) || prevBlock.getIndex() + 1 != curBlock.getIndex()) {
                 throw new ChainValidationException(prevBlock.getIndex(), curBlock.getIndex());
             }
         }
@@ -205,6 +212,8 @@ public class BlockChainService {
                         add(generatedBlock);
                     }
 
+                } catch (ChainValidationException e) {
+                    throw new RuntimeException(e); // TODO
                 } finally {
                     lock.unlock();
                 }

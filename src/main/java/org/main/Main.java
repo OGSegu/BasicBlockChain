@@ -14,8 +14,8 @@ import java.util.Properties;
 
 public class Main {
 
-    private static final String NODE_NAME_ARG = "-n";
-    private static final String GENESIS_GENERATOR_ARG = "-g";
+    protected static final String NODE_NAME_ARG = "-n";
+    protected static final String GENESIS_GENERATOR_ARG = "-g";
 
     public static void main(String[] args) throws IOException {
         Properties properties = loadProperties();
@@ -34,7 +34,7 @@ public class Main {
         rpcServer.start();
     }
 
-    private static Map<String, String> getNodeName(String[] args) {
+    protected static Map<String, String> getNodeName(String[] args) {
         Map<String, String> result = new HashMap<>();
         for (int i = 0; i < args.length; i++) {
             if (args[i].equalsIgnoreCase(NODE_NAME_ARG)) {
@@ -52,7 +52,7 @@ public class Main {
     }
 
     @NotNull
-    private static Properties loadProperties() throws IOException {
+    protected static Properties loadProperties() throws IOException {
         Properties properties = new Properties();
         InputStream resourceAsStream = Main.class.getClassLoader().getResourceAsStream("config.properties");
         properties.load(resourceAsStream);

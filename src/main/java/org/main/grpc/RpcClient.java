@@ -20,7 +20,7 @@ public class RpcClient {
 
     private final String nodeName;
 
-    private final List<BlockServiceGrpc.BlockServiceBlockingStub> stubs;
+    List<BlockServiceGrpc.BlockServiceBlockingStub> stubs;
 
     public RpcClient(String nodeName, Properties properties) {
         this.nodeName = nodeName;
@@ -28,7 +28,7 @@ public class RpcClient {
         init(properties);
     }
 
-    private void init(Properties properties) {
+    protected void init(Properties properties) {
         int nodesAmount = Integer.parseInt(properties.getProperty(RpcConfiguration.NODES_AMOUNT_PROPERTY));
         for (int i = 0; i < nodesAmount; i++) {
             String curNodeName = RpcConfiguration.NODE_PREFIX_PROPERTY + i;

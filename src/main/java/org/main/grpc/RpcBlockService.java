@@ -2,7 +2,6 @@ package org.main.grpc;
 
 import com.google.protobuf.Empty;
 import io.grpc.stub.StreamObserver;
-import org.main.exception.ChainValidationException;
 import org.main.grpc.entity.MinedBlockRequest;
 import org.main.java.grpc.BlockOuterClass;
 import org.main.java.grpc.BlockServiceGrpc;
@@ -23,14 +22,15 @@ public class RpcBlockService extends BlockServiceGrpc.BlockServiceImplBase {
         MinedBlockRequest request = new MinedBlockRequest(RpcEntityConverter.from(rpcRequest.getBlock()));
         System.out.println("Received block request with index: [" + request.block().getIndex() + "]");
         BlockOuterClass.MinedBlockResponse.Builder responseBuilder = BlockOuterClass.MinedBlockResponse.newBuilder();
-        try {
-            blockChainService.onBlockRequestReceived(request);
+
+        boolean result = blockChainService.onBlockRequestReceived(request);
+
+        if (result) {
             responseBuilder.setCode(BlockOuterClass.ResponseCode.ACCEPTED);
-        } catch (ChainValidationException e) {
-            System.out.println("Received block doesn't fit blockchain.");
+        } else {
             responseBuilder.setCode(BlockOuterClass.ResponseCode.REJECTED);
-            responseBuilder.setBlock(blockChainService.getBlockChain().get())
         }
+
         responseObserver.onNext(responseBuilder.build());
         responseObserver.onCompleted();
     }
@@ -45,8 +45,8 @@ public class RpcBlockService extends BlockServiceGrpc.BlockServiceImplBase {
     }
 
     @Override
-    public void getBlockchain(Empty request, StreamObserver<BlockOuterClass.GetBlockChainResponse> responseObserver) {
-        List<BlockOuterClass.Block> rpcBlocks = blockChainService.getBlockChain().stream()
+    public void getBlockchain(BlockOuterClass.GetBlockChainRequest request, StreamObserver<BlockOuterClass.GetBlockChainResponse> responseObserver) {
+        List<BlockOuterClass.Block> rpcBlocks = blockChainService.getBlockChain(request.getFromIndex()).stream()
                 .map(RpcEntityConverter::from)
                 .toList();
         BlockOuterClass.GetBlockChainResponse response = BlockOuterClass.GetBlockChainResponse.newBuilder()

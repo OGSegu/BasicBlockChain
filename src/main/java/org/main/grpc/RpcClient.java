@@ -58,7 +58,6 @@ public class RpcClient {
                     try {
                         rpcResponse = stub.sendBlock(request);
                     } catch (Exception e) {
-                        System.out.printf("Failed to send block to node: [%s]%n", host);
                         return new MinedBlockResponse(host, MinedBlockResponseCode.FAILED, null);
                     }
                     return RpcEntityConverter.from(host, rpcResponse);
@@ -67,7 +66,7 @@ public class RpcClient {
     }
 
     @NotNull
-    public GetBlockChainResponse getBlockchain() {
+    public GetBlockChainResponse getBlockchain(long fromIndex) {
         Map<BlockServiceGrpc.BlockServiceBlockingStub, HeartbeatResponse> heartbeatResponses = sendHeartbeatBroadcast();
         Map.Entry<BlockServiceGrpc.BlockServiceBlockingStub, HeartbeatResponse> hostWithMaxChainLength = heartbeatResponses.entrySet().stream()
                 .max(Comparator.comparingLong(host -> host.getValue().chainLength()))
@@ -80,7 +79,10 @@ public class RpcClient {
         BlockServiceGrpc.BlockServiceBlockingStub stub = hostWithMaxChainLength.getKey();
         BlockOuterClass.GetBlockChainResponse blockchainResponse;
         try {
-            blockchainResponse = stub.getBlockchain(Empty.newBuilder().build());
+            BlockOuterClass.GetBlockChainRequest request = BlockOuterClass.GetBlockChainRequest.newBuilder()
+                    .setFromIndex(fromIndex)
+                    .build();
+            blockchainResponse = stub.getBlockchain(request);
         } catch (Exception  e) {
             System.out.printf("Failed to get blockchain from node: [%s]%n", stub.getChannel().authority());
             return GetBlockChainResponse.EMPTY;

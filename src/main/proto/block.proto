@@ -28,6 +28,10 @@ message MinedBlockResponse {
     Block block = 2; // will be returned only if ResponseCode is REJECTED
 }
 
+message GetBlockChainRequest {
+  int64 from_index = 1;
+}
+
 message GetBlockChainResponse {
   repeated Block block = 1;
 }
@@ -38,6 +42,6 @@ message HeartbeatResponse {
 
 service BlockService {
   rpc sendBlock(MinedBlockRequest) returns (MinedBlockResponse);
+  rpc getBlockchain(GetBlockChainRequest) returns (GetBlockChainResponse);
   rpc sendHeartbeat(google.protobuf.Empty) returns (HeartbeatResponse);
-  rpc getBlockchain(google.protobuf.Empty) returns (GetBlockChainResponse);
 }

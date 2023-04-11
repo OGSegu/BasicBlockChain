@@ -1,6 +1,7 @@
 package org.main.state;
 
 
+import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.jetbrains.annotations.NotNull;
@@ -12,14 +13,18 @@ import org.main.grpc.RpcClient;
 import org.main.grpc.entity.GetBlockChainResponse;
 import org.main.grpc.entity.MinedBlockRequest;
 import org.main.grpc.entity.MinedBlockResponse;
+import org.main.grpc.entity.MinedBlockResponseCode;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 
 public class BlockChainService {
 
@@ -45,31 +50,28 @@ public class BlockChainService {
             blocks.add(genesis);
         }
     }
+
     public void start() {
         if (!generateGenesis) {
-            loadBlockchainFromCluster();
+            loadBlockchainFromCluster(0); // whole blockchain
         }
         mainWorker.submit(new BlockChainMainWorker());
         System.out.println("Blockchain started...");
     }
 
-    private void loadBlockchainFromCluster() {
-        System.out.println("Trying to get blockchain from cluster...");
+    private void loadBlockchainFromCluster(long fromIndex) {
+        System.out.printf("Trying to get blockchain from index: [%d] from cluster...%n", fromIndex);
 
         lock.lock();
         try {
-            GetBlockChainResponse blockChainResponse = rpcClient.getBlockchain();
+            GetBlockChainResponse blockChainResponse = rpcClient.getBlockchain(fromIndex);
             List<Block> receivedBlockchain = blockChainResponse.blockChain();
             if (receivedBlockchain.isEmpty()) {
                 return;
             }
 
             for (Block block : blockChainResponse.blockChain()) {
-                try {
-                    add(block);
-                } catch (ChainValidationException e) {
-                    throw new RuntimeException(e);
-                }
+                add(block);
             }
             System.out.printf("Successfully added [%d] blocks from cluster%n", receivedBlockchain.size());
         } finally {
@@ -81,26 +83,27 @@ public class BlockChainService {
         return blocks.size();
     }
 
-    public List<Block> getBlockChain() {
-        return ImmutableList.copyOf(blocks);
+    public List<Block> getBlockChain(long fromIndex) {
+        return ImmutableList.copyOf(blocks.subList((int) fromIndex, blocks.size()));
     }
 
-    public void onBlockRequestReceived(MinedBlockRequest request) throws ChainValidationException {
-        onBlockReceived(request.block());
+    public boolean onBlockRequestReceived(MinedBlockRequest request) {
+        return onBlockReceived(request.block());
     }
 
-    public void onBlockReceived(Block block) throws ChainValidationException {
+    public boolean onBlockReceived(Block block) {
         try {
             long blockIndex = block.getIndex();
             if (blocks.size() - 1 >= blockIndex) {
-                System.out.printf("Block with index [%d] is already mined. Skipping...%n", blockIndex);
-                return;
+                System.out.printf("Block with index [%d] is already mined. Rejected...%n", blockIndex);
+                return false;
             }
             blockRequestsIncoming.incrementAndGet();
             lock.lock();
             try {
                 add(block);
                 System.out.printf("Added received block with index: [%d]%n", block.getIndex());
+                return true;
             } finally {
                 lock.unlock();
             }
@@ -110,14 +113,20 @@ public class BlockChainService {
     }
 
     @VisibleForTesting
-    void add(Block newBlock) throws ChainValidationException {
+    boolean add(Block newBlock) {
         blocks.add(newBlock);
         try {
             validateChains();
         } catch (ChainValidationException e) {
             blocks.remove(blocks.size() - 1); // добавленный блок "сломал" цепочку
-            throw new ChainValidationException(e.getMessage());
+            return false;
         }
+
+        if (newBlock.getIndex() % 10 == 0) {
+            System.out.printf("Blockchain state: [%s]%n", Joiner.on(";").join(blocks));
+        }
+
+        return true;
     }
 
     /**
@@ -150,14 +159,16 @@ public class BlockChainService {
 
     private class BlockChainMainWorker implements Runnable {
 
-        private static final long DELAY = 4000L;
-
         @Override
         public void run() {
             while (!Thread.currentThread().isInterrupted()) {
-
                 lock.lock();
                 try {
+                    try {
+                        Thread.sleep(ThreadLocalRandom.current().nextInt(4000, 15000));
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
                     Block prevBlock = getLastBlock();
                     Block generatedBlock = BlockGenerationUtils.generateBlock(prevBlock, () -> blockRequestsIncoming.get() > 0);
                     if (generatedBlock == null) {
@@ -167,19 +178,35 @@ public class BlockChainService {
                     }
 
                     System.out.printf("Generated block with index: [%d]%n", generatedBlock.getIndex());
+
                     List<MinedBlockResponse> responses = rpcClient.sendBlockBroadcast(generatedBlock);
 
-                    add(generatedBlock);
-                } catch (ChainValidationException e) {
-                    System.err.println("Chain validation failed: " + e.getMessage());
-                    // TODO do something
+                    System.out.printf("Block broadcast returned: [%s]%n", Joiner.on(";").join(responses));
+
+                    Map<MinedBlockResponseCode, List<MinedBlockResponse>> responsesByCode = responses.stream()
+                            .filter(response -> response.getResponseCode() != MinedBlockResponseCode.FAILED) // failed doesn't contain any useful info
+                            .collect(Collectors.groupingBy(MinedBlockResponse::getResponseCode));
+
+                    List<MinedBlockResponse> rejectedResponses = responsesByCode.get(MinedBlockResponseCode.REJECTED);
+                    int rejected = rejectedResponses == null ? -1 : rejectedResponses.size();
+                    List<MinedBlockResponse> acceptedResponses = responsesByCode.get(MinedBlockResponseCode.ACCEPTED);
+                    int accepted =  acceptedResponses == null ? -1 : acceptedResponses.size();
+
+                    boolean isRejected = rejected == responsesByCode.size();
+
+                    if (isRejected) {
+                        loadBlockchainFromCluster(generatedBlock.getIndex());
+                        continue;
+                    }
+
+                    boolean isAccepted = accepted >= Math.ceil((double) responsesByCode.size() / 2);
+
+                    if (isAccepted || responsesByCode.isEmpty()) {
+                        add(generatedBlock);
+                    }
+
                 } finally {
                     lock.unlock();
-                }
-                try {
-                    Thread.sleep(DELAY);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
                 }
             }
         }
